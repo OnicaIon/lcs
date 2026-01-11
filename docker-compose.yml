@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  etl:
+    build: ./src/etl
+    container_name: lcs-etl
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mssql+pyodbc://sa:${SA_PASSWORD}@mssql:1433/lcs?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      - OLLAMA_URL=http://host.docker.internal:11434
+      - IMPORT_PATH=/data/import
+    volumes:
+      - ${IMPORT_PATH:-./data/import}:/data/import:ro
+    depends_on:
+      mssql:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: lcs-mssql
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${SA_PASSWORD}
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "${SA_PASSWORD}" -C -Q "SELECT 1" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  mssql_data:
+    driver: local

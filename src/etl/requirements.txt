@@ -1,0 +1,33 @@
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.25
+pyodbc==5.0.1
+
+# Data Processing
+pandas==2.1.4
+numpy==1.26.3
+
+# ML / Analytics
+lifetimes==0.11.3
+scikit-learn==1.4.0
+
+# HTTP Client (for Ollama)
+httpx==0.26.0
+
+# Async
+asyncio==3.4.3
+
+# Validation
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Background Tasks
+apscheduler==3.10.4
+
+# Utilities
+python-dateutil==2.8.2
+chardet==5.2.0
