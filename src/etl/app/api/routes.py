@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 
 from app.database import get_db
 from app.models import Tenant, Customer, CustomerMetrics, ImportLog
@@ -120,6 +120,7 @@ ADMIN_HTML = """
                 <div class="stat" id="stat-unclassified"><div class="stat-value">-</div><div class="stat-label">Без категории</div></div>
             </div>
             <div class="progress"><div class="progress-bar blue" id="progress-classify" style="width: 0%"></div></div>
+            <div class="date-info">Осталось: <span id="classify-eta">-</span></div>
         </div>
 
         <div class="section">
@@ -178,6 +179,15 @@ ADMIN_HTML = """
             return d.toLocaleDateString('ru') + ' ' + d.toLocaleTimeString('ru');
         }
 
+        function formatDuration(seconds) {
+            if (!seconds || seconds <= 0) return '-';
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            if (h > 0) return `~${h}ч ${m}м`;
+            if (m > 0) return `~${m} мин`;
+            return `<1 мин`;
+        }
+
         async function loadStats() {
             try {
                 const resp = await fetch(`/api/tenants/${TENANT_ID}/stats`);
@@ -202,6 +212,8 @@ ADMIN_HTML = """
                     setStat('stat-unclassified', d.total_products - d.classified_products,
                         d.total_products - d.classified_products === 0 ? 'ok' : 'warn');
                     document.getElementById('progress-classify').style.width = (d.classification_pct || 0) + '%';
+                    document.getElementById('classify-eta').textContent =
+                        d.classification_pct >= 100 ? 'завершено' : formatDuration(d.classification_eta);
 
                     // Метрики
                     setStat('stat-with-metrics', d.customers_with_metrics, d.metrics_pct >= 100 ? 'ok' : 'warn');
@@ -351,6 +363,27 @@ def get_tenant_stats(tenant_id: str, db: Session = Depends(get_db)):
 
     classification_pct = round(100 * classified_products / total_products, 1) if total_products > 0 else 0
 
+    # Оценка времени классификации
+    classification_eta = None
+    if classified_products > 0 and classified_products < total_products:
+        # Получаем время первой и последней классификации
+        first_classified = db.execute(text("""
+            SELECT MIN(classified_at), MAX(classified_at)
+            FROM products
+            WHERE tenant_id = :tid AND classified_at IS NOT NULL
+        """), {"tid": tenant_id}).fetchone()
+
+        if first_classified and first_classified[0] and first_classified[1]:
+            first_time, last_time = first_classified
+            elapsed_seconds = (last_time - first_time).total_seconds()
+            if elapsed_seconds > 0:
+                # Скорость: товаров в секунду
+                rate = classified_products / elapsed_seconds
+                remaining_products = total_products - classified_products
+                if rate > 0:
+                    remaining_seconds = remaining_products / rate
+                    classification_eta = int(remaining_seconds)
+
     # Метрики
     customers_with_metrics = db.query(func.count(CustomerMetrics.customer_id.distinct())).filter(
         CustomerMetrics.tenant_id == tenant_id
@@ -383,6 +416,7 @@ def get_tenant_stats(tenant_id: str, db: Session = Depends(get_db)):
         # Классификация
         "classified_products": classified_products,
         "classification_pct": classification_pct,
+        "classification_eta": classification_eta,  # секунды до завершения
         # Метрики
         "customers_with_metrics": customers_with_metrics,
         "metrics_pct": metrics_pct,
