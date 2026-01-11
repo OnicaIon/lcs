@@ -18,26 +18,19 @@ class ProductClassifier:
     """Classify products into categories using LLM."""
 
     CATEGORIES = [
-        "Молочные продукты",
-        "Мясо и птица",
-        "Рыба и морепродукты",
-        "Хлеб и выпечка",
-        "Овощи и фрукты",
-        "Напитки безалкогольные",
-        "Алкоголь",
-        "Кондитерские изделия",
-        "Бакалея",
-        "Замороженные продукты",
-        "Консервы",
-        "Соусы и специи",
-        "Детское питание",
-        "Бытовая химия",
-        "Косметика и гигиена",
-        "Товары для дома",
-        "Табачные изделия",
-        "Снеки и чипсы",
-        "Сыры",
-        "Колбасные изделия",
+        "Обувь спортивная",
+        "Обувь повседневная",
+        "Одежда спортивная",
+        "Одежда повседневная",
+        "Сумки и рюкзаки",
+        "Тренажёры",
+        "Спортинвентарь",
+        "Мячи",
+        "Велосипеды",
+        "Ролики и скейты",
+        "Спортивное питание",
+        "Защита и экипировка",
+        "Аксессуары",
         "Другое",
     ]
 
@@ -46,7 +39,7 @@ class ProductClassifier:
         self.tenant_id = tenant_id
         self.ollama_url = settings.ollama_url
         self.model = settings.llm_model
-        self.batch_size = 20  # Products per LLM request
+        self.batch_size = 10  # Products per LLM request (optimized for small models)
 
     def classify_all(self, force: bool = False) -> dict:
         """Classify all unclassified products.
@@ -93,13 +86,13 @@ class ProductClassifier:
             try:
                 classifications = self._classify_batch(batch)
                 self._save_classifications(classifications)
+                self.db.commit()  # Commit each batch for visibility
                 classified += len(classifications)
                 print(f"  Processed {min(i + self.batch_size, total)}/{total}")
             except Exception as e:
+                self.db.rollback()
                 errors += len(batch)
                 print(f"  Error classifying batch: {e}")
-
-        self.db.commit()
 
         return {
             "status": "success",
@@ -116,16 +109,16 @@ class ProductClassifier:
             f"{i+1}. {p[1]}" for i, p in enumerate(products)
         )
 
-        prompt = f"""Классифицируй товары по категориям. Отвечай ТОЛЬКО JSON массивом.
+        # Category list for prompt
+        cats = ", ".join(self.CATEGORIES)
 
-Доступные категории:
-{', '.join(self.CATEGORIES)}
+        prompt = f"""Classify sports store products. Reply ONLY JSON array.
+Categories: {cats}
 
-Товары для классификации:
+Products:
 {product_list}
 
-Ответ строго в формате JSON (без markdown, без пояснений):
-[{{"index": 1, "category": "Категория"}}, {{"index": 2, "category": "Категория"}}]"""
+JSON: [{{"i":1,"c":"Обувь спортивная"}},{{"i":2,"c":"Спортинвентарь"}}]"""
 
         # Call Ollama
         response = self._call_ollama(prompt)
@@ -169,8 +162,9 @@ class ProductClassifier:
                 data = json.loads(response)
 
             for item in data:
-                idx = item.get("index", 0) - 1
-                category = item.get("category", "Другое")
+                # Support both short (i/c) and long (index/category) keys
+                idx = item.get("i", item.get("index", 0)) - 1
+                category = item.get("c", item.get("category", "Другое"))
 
                 # Validate category
                 if category not in self.CATEGORIES:
@@ -205,46 +199,49 @@ class ProductClassifier:
             if cat.lower() in category_lower or category_lower in cat.lower():
                 return cat
 
-        # Common mappings
+        # Common mappings to categories
         mappings = {
-            "молоко": "Молочные продукты",
-            "сыр": "Сыры",
-            "колбас": "Колбасные изделия",
-            "мясо": "Мясо и птица",
-            "птица": "Мясо и птица",
-            "курица": "Мясо и птица",
-            "рыба": "Рыба и морепродукты",
-            "хлеб": "Хлеб и выпечка",
-            "выпечка": "Хлеб и выпечка",
-            "овощ": "Овощи и фрукты",
-            "фрукт": "Овощи и фрукты",
-            "напиток": "Напитки безалкогольные",
-            "вода": "Напитки безалкогольные",
-            "сок": "Напитки безалкогольные",
-            "пиво": "Алкоголь",
-            "вино": "Алкоголь",
-            "водка": "Алкоголь",
-            "конфет": "Кондитерские изделия",
-            "шоколад": "Кондитерские изделия",
-            "печенье": "Кондитерские изделия",
-            "крупа": "Бакалея",
-            "макарон": "Бакалея",
-            "мука": "Бакалея",
-            "заморож": "Замороженные продукты",
-            "консерв": "Консервы",
-            "соус": "Соусы и специи",
-            "специи": "Соусы и специи",
-            "детск": "Детское питание",
-            "моющ": "Бытовая химия",
-            "стирал": "Бытовая химия",
-            "шампунь": "Косметика и гигиена",
-            "мыло": "Косметика и гигиена",
-            "зубн": "Косметика и гигиена",
-            "сигарет": "Табачные изделия",
-            "табак": "Табачные изделия",
-            "чипсы": "Снеки и чипсы",
-            "орех": "Снеки и чипсы",
-            "сухарик": "Снеки и чипсы",
+            # Обувь спортивная
+            "adidas": "Обувь спортивная", "nike": "Обувь спортивная", "sneaker": "Обувь спортивная",
+            "кроссов": "Обувь спортивная", "running": "Обувь спортивная", "training": "Обувь спортивная",
+            # Обувь повседневная
+            "boot": "Обувь повседневная", "ghete": "Обувь повседневная", "papuc": "Обувь повседневная",
+            "shoe": "Обувь повседневная", "sandal": "Обувь повседневная",
+            # Одежда спортивная
+            "tricou": "Одежда спортивная", "t-shirt": "Одежда спортивная", "short": "Одежда спортивная",
+            "legging": "Одежда спортивная", "hoodie": "Одежда спортивная", "hanorac": "Одежда спортивная",
+            "bustiera": "Одежда спортивная", "swim": "Одежда спортивная", "costume": "Одежда спортивная",
+            # Одежда повседневная
+            "jacket": "Одежда повседневная", "jacheta": "Одежда повседневная", "pant": "Одежда повседневная",
+            "sock": "Одежда повседневная", "underwear": "Одежда повседневная",
+            # Сумки и рюкзаки
+            "bag": "Сумки и рюкзаки", "rucsac": "Сумки и рюкзаки", "backpack": "Сумки и рюкзаки",
+            "geanta": "Сумки и рюкзаки",
+            # Тренажёры
+            "stepper": "Тренажёры", "treadmill": "Тренажёры", "trainer": "Тренажёры",
+            "bench": "Тренажёры", "banca": "Тренажёры",
+            # Спортинвентарь
+            "dumbbell": "Спортинвентарь", "kettlebell": "Спортинвентарь", "rope": "Спортинвентарь",
+            "yoga": "Спортинвентарь", "saltea": "Спортинвентарь", "racket": "Спортинвентарь",
+            "boxing": "Спортинвентарь", "glove": "Спортинвентарь", "band": "Спортинвентарь",
+            # Мячи
+            "ball": "Мячи", "minge": "Мячи", "football": "Мячи", "basketball": "Мячи",
+            # Велосипеды
+            "bike": "Велосипеды", "biciclet": "Велосипеды", "cycling": "Велосипеды",
+            # Ролики и скейты
+            "skate": "Ролики и скейты", "patine": "Ролики и скейты", "roller": "Ролики и скейты",
+            "skateboard": "Ролики и скейты", "scuter": "Ролики и скейты",
+            # Спортивное питание
+            "protein": "Спортивное питание", "bcaa": "Спортивное питание", "creatine": "Спортивное питание",
+            "vitamin": "Спортивное питание", "carnitine": "Спортивное питание", "supplement": "Спортивное питание",
+            "oshee": "Спортивное питание", "caffeine": "Спортивное питание", "spirulina": "Спортивное питание",
+            # Защита и экипировка
+            "helmet": "Защита и экипировка", "casca": "Защита и экипировка", "protec": "Защита и экипировка",
+            "goggle": "Защита и экипировка", "ochelari": "Защита и экипировка",
+            # Аксессуары
+            "cap": "Аксессуары", "hat": "Аксессуары", "sapca": "Аксессуары",
+            "headband": "Аксессуары", "belt": "Аксессуары", "watch": "Аксессуары",
+            "bottle": "Аксессуары", "towel": "Аксессуары",
         }
 
         for key, value in mappings.items():

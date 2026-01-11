@@ -6,15 +6,13 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://lcs:lcs@postgres:5432/lcs
-      - OLLAMA_URL=http://172.23.240.1:11434
+      - OLLAMA_URL=http://192.168.88.14:11434
       - LLM_MODEL=qwen2.5-coder:14b
     volumes:
       - /mnt/u/BI:/mnt/u/BI:ro
     depends_on:
       postgres:
         condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   metabase:

@@ -11,7 +11,12 @@ from app.database import get_db
 from app.models import Tenant, Customer, CustomerMetrics, ImportLog
 from app.services import DataImporter, Parser1C, ProductClassifier
 from app.services.importer import create_tenant
-from app.metrics import MetricsCalculator
+from app.metrics import (
+    MetricsCalculator,
+    ProductMetricsCalculator,
+    DiscountMetricsCalculator,
+    TimeMetricsCalculator,
+)
 from app.api.schemas import (
     TenantCreate, TenantResponse, TenantList,
     ImportStatus, FileInfo,
@@ -390,6 +395,185 @@ def get_dashboard(tenant_id: str, db: Session = Depends(get_db)):
         lifecycle_segments=lifecycle_segments,
         abc_segments=abc_segments
     )
+
+
+# ============================================
+# Product & Category Analytics Endpoints
+# ============================================
+
+@router.get("/tenants/{tenant_id}/analytics/products")
+def get_product_analytics(tenant_id: str, db: Session = Depends(get_db)):
+    """Get comprehensive product and category analytics."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = ProductMetricsCalculator(db, tenant_id)
+    return {
+        "category_stats": calculator.calc_category_stats(),
+        "top_products": calculator.calc_top_products(limit=50),
+        "product_abc": calculator.calc_product_abc(),
+        "basket_analysis": calculator.calc_basket_analysis(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/products/categories")
+def get_category_analytics(tenant_id: str, db: Session = Depends(get_db)):
+    """Get category-level analytics."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = ProductMetricsCalculator(db, tenant_id)
+    return {
+        "stats": calculator.calc_category_stats(),
+        "trends": calculator.calc_category_trends(),
+        "penetration": calculator.calc_category_customer_penetration(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/products/cross-sell")
+def get_cross_sell_analytics(tenant_id: str, db: Session = Depends(get_db)):
+    """Get cross-sell matrix and recommendations."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = ProductMetricsCalculator(db, tenant_id)
+    return {
+        "cross_sell_matrix": calculator.calc_cross_sell_matrix(),
+        "basket_analysis": calculator.calc_basket_analysis(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/products/velocity")
+def get_product_velocity(tenant_id: str, db: Session = Depends(get_db)):
+    """Get product velocity (sales per day)."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = ProductMetricsCalculator(db, tenant_id)
+    return calculator.calc_product_velocity()
+
+
+@router.get("/tenants/{tenant_id}/analytics/products/price-segments")
+def get_price_segments(tenant_id: str, db: Session = Depends(get_db)):
+    """Get price segment analysis."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = ProductMetricsCalculator(db, tenant_id)
+    return calculator.calc_price_segments()
+
+
+# ============================================
+# Discount Analytics Endpoints
+# ============================================
+
+@router.get("/tenants/{tenant_id}/analytics/discounts")
+def get_discount_analytics(tenant_id: str, db: Session = Depends(get_db)):
+    """Get comprehensive discount analytics."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = DiscountMetricsCalculator(db, tenant_id)
+    return {
+        "overall_stats": calculator.calc_overall_discount_stats(),
+        "by_category": calculator.calc_discount_by_category(),
+        "brackets": calculator.calc_discount_brackets(),
+        "effectiveness": calculator.calc_discount_effectiveness(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/discounts/trends")
+def get_discount_trends(tenant_id: str, db: Session = Depends(get_db)):
+    """Get discount trends over time."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = DiscountMetricsCalculator(db, tenant_id)
+    return calculator.calc_discount_trends()
+
+
+@router.get("/tenants/{tenant_id}/analytics/discounts/customers")
+def get_customer_discount_behavior(tenant_id: str, db: Session = Depends(get_db)):
+    """Get customer discount behavior analysis."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = DiscountMetricsCalculator(db, tenant_id)
+    return {
+        "behavior_segments": calculator.calc_customer_discount_behavior(),
+        "by_rfm_segment": calculator.calc_discount_by_customer_segment(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/discounts/margin-impact")
+def get_margin_impact(tenant_id: str, db: Session = Depends(get_db)):
+    """Get discount impact on margins."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = DiscountMetricsCalculator(db, tenant_id)
+    return {
+        "margin_impact": calculator.calc_margin_impact(),
+        "cannibalization": calculator.calc_discount_cannibalization(),
+    }
+
+
+# ============================================
+# Time-based Analytics Endpoints
+# ============================================
+
+@router.get("/tenants/{tenant_id}/analytics/time")
+def get_time_analytics(tenant_id: str, db: Session = Depends(get_db)):
+    """Get comprehensive time-based analytics."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = TimeMetricsCalculator(db, tenant_id)
+    return {
+        "day_of_week": calculator.calc_day_of_week_analysis(),
+        "hour_of_day": calculator.calc_hour_of_day_analysis(),
+        "seasonality": calculator.calc_seasonality(),
+        "peak_periods": calculator.calc_peak_periods(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/time/trends")
+def get_time_trends(tenant_id: str, db: Session = Depends(get_db)):
+    """Get sales trends over time."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = TimeMetricsCalculator(db, tenant_id)
+    return {
+        "monthly": calculator.calc_monthly_trends(),
+        "weekly": calculator.calc_weekly_trends(),
+        "yoy_comparison": calculator.calc_year_over_year(),
+    }
+
+
+@router.get("/tenants/{tenant_id}/analytics/cohorts")
+def get_cohort_analytics(tenant_id: str, db: Session = Depends(get_db)):
+    """Get cohort analysis."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    calculator = TimeMetricsCalculator(db, tenant_id)
+    return {
+        "retention": calculator.calc_cohort_retention(),
+        "revenue": calculator.calc_cohort_revenue(),
+    }
 
 
 # ============================================
