@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import router
+from app.api import router, admin_router
 from app.database import init_db
 from app.config import get_settings
 
@@ -70,6 +70,7 @@ app.add_middleware(
 
 # Include API router
 app.include_router(router)
+app.include_router(admin_router)
 
 
 # Root endpoint

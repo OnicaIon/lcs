@@ -40,13 +40,45 @@ class DataImporter:
             return self.tenant.import_path
         return os.path.join(self.BASE_IMPORT_PATH, self.tenant.code)
 
-    def import_all(self) -> dict:
-        """Import all available 1C files using bulk insert."""
+    def _clear_tenant_data(self):
+        """Clear all data for tenant before re-import."""
+        tables_to_clear = [
+            'customer_metrics',      # Зависит от customers
+            'bonus_movements',       # Зависит от customers, transactions
+            'bonus_balances',        # Зависит от customers
+            'transaction_items',     # Зависит от transactions, products
+            'transactions',          # Зависит от customers, stores, employees
+            'customer_identifiers',  # Зависит от customers
+        ]
+
+        print("Clearing existing data for tenant...")
+        for table in tables_to_clear:
+            try:
+                result = self.db.execute(
+                    text(f"DELETE FROM {table} WHERE tenant_id = :tid"),
+                    {"tid": self.tenant_id}
+                )
+                print(f"  {table}: {result.rowcount} rows deleted")
+            except Exception as e:
+                print(f"  {table}: skip ({e})")
+
+        self.db.commit()
+
+    def import_all(self, clean: bool = True) -> dict:
+        """Import all available 1C files using bulk insert.
+
+        Args:
+            clean: If True, clear existing data before import (default: True)
+        """
         self.stats = {
             "started_at": datetime.utcnow(),
             "files": {},
             "errors": [],
         }
+
+        # Clear existing data to prevent duplicates
+        if clean:
+            self._clear_tenant_data()
 
         import_order = [
             ("ГруппыКлиентов.txt", self._import_customer_groups),
@@ -284,10 +316,6 @@ class DataImporter:
         df = self._parse_to_dataframe(filename)
         df = df[df['customer_id'].notna() & df['identifier'].notna()]
 
-        # Delete existing
-        self.db.execute(text(f"DELETE FROM customer_identifiers WHERE tenant_id = '{self.tenant_id}'"))
-        self.db.commit()
-
         return self._execute_insert(
             df, 'customer_identifiers', ['customer_id', 'identifier'],
             uuid_cols=['customer_id']
@@ -335,10 +363,6 @@ class DataImporter:
     def _import_transaction_items(self, filename: str) -> int:
         df = self._parse_to_dataframe(filename)
         df = df[df['transaction_id'].notna() & df['product_id'].notna()]
-
-        # Delete existing
-        self.db.execute(text(f"DELETE FROM transaction_items WHERE tenant_id = '{self.tenant_id}'"))
-        self.db.commit()
 
         # Process in chunks
         chunk_size = 50000

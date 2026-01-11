@@ -4,6 +4,7 @@ from typing import List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -26,6 +27,186 @@ from app.api.schemas import (
 )
 
 router = APIRouter(prefix="/api", tags=["LCS API"])
+admin_router = APIRouter(tags=["Admin"])
+
+# ============================================
+# Admin UI
+# ============================================
+
+ADMIN_HTML = """
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LCS Admin</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh; padding: 2rem; color: #fff;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 2rem; font-size: 2.5rem; }
+        .status { background: #0f3460; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
+        .status h2 { margin-bottom: 1rem; color: #e94560; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
+        .stat { background: #1a1a2e; padding: 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 1.8rem; font-weight: bold; color: #e94560; }
+        .stat-label { font-size: 0.9rem; color: #aaa; margin-top: 0.3rem; }
+        .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
+        .action-card {
+            background: #0f3460; border-radius: 12px; padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .action-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(233,69,96,0.3); }
+        .action-card h3 { margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+        .action-card p { color: #aaa; font-size: 0.9rem; margin-bottom: 1rem; }
+        button {
+            width: 100%; padding: 1rem; border: none; border-radius: 8px;
+            font-size: 1rem; font-weight: 600; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-import { background: #4caf50; color: white; }
+        .btn-import:hover { background: #45a049; }
+        .btn-classify { background: #2196f3; color: white; }
+        .btn-classify:hover { background: #1976d2; }
+        .btn-metrics { background: #ff9800; color: white; }
+        .btn-metrics:hover { background: #f57c00; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        .log {
+            background: #1a1a2e; border-radius: 8px; padding: 1rem;
+            margin-top: 2rem; max-height: 300px; overflow-y: auto;
+            font-family: monospace; font-size: 0.85rem;
+        }
+        .log-entry { padding: 0.3rem 0; border-bottom: 1px solid #333; }
+        .log-time { color: #666; }
+        .log-success { color: #4caf50; }
+        .log-error { color: #f44336; }
+        .log-info { color: #2196f3; }
+        .progress { height: 8px; background: #1a1a2e; border-radius: 4px; margin-top: 0.5rem; overflow: hidden; }
+        .progress-bar { height: 100%; background: #e94560; transition: width 0.3s; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏪 LCS Admin Panel</h1>
+
+        <div class="status">
+            <h2>📊 Статус системы</h2>
+            <div class="status-grid">
+                <div class="stat">
+                    <div class="stat-value" id="customers">-</div>
+                    <div class="stat-label">Клиентов</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="transactions">-</div>
+                    <div class="stat-label">Транзакций</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="products">-</div>
+                    <div class="stat-label">Товаров</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="classified">-</div>
+                    <div class="stat-label">Классифицировано</div>
+                </div>
+            </div>
+            <div class="progress"><div class="progress-bar" id="progress" style="width: 0%"></div></div>
+        </div>
+
+        <div class="actions">
+            <div class="action-card">
+                <h3>🔄 Импорт данных</h3>
+                <p>Повторный импорт всех данных из файлов 1С. Обновит клиентов, транзакции и товары.</p>
+                <button class="btn-import" onclick="runAction('import')">Запустить импорт</button>
+            </div>
+
+            <div class="action-card">
+                <h3>🤖 Классификация товаров</h3>
+                <p>LLM классификация товаров по категориям с помощью Ollama.</p>
+                <button class="btn-classify" onclick="runAction('classify')">Запустить классификацию</button>
+            </div>
+
+            <div class="action-card">
+                <h3>📊 Пересчёт метрик</h3>
+                <p>Пересчитать все 51 метрику для всех клиентов.</p>
+                <button class="btn-metrics" onclick="runAction('metrics')">Пересчитать метрики</button>
+            </div>
+        </div>
+
+        <div class="log" id="log">
+            <div class="log-entry log-info">Готов к работе...</div>
+        </div>
+    </div>
+
+    <script>
+        const TENANT_ID = '74f182c9-959c-41aa-9364-84d0eb533f20';
+
+        function log(msg, type = 'info') {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            logEl.innerHTML = `<div class="log-entry log-${type}"><span class="log-time">[${time}]</span> ${msg}</div>` + logEl.innerHTML;
+        }
+
+        async function loadStats() {
+            try {
+                const resp = await fetch(`/api/tenants/${TENANT_ID}/stats`);
+                if (resp.ok) {
+                    const data = await resp.json();
+                    document.getElementById('customers').textContent = data.total_customers?.toLocaleString() || '-';
+                    document.getElementById('transactions').textContent = data.total_transactions?.toLocaleString() || '-';
+                    document.getElementById('products').textContent = data.total_products?.toLocaleString() || '-';
+                    document.getElementById('classified').textContent =
+                        data.classified_products ? `${data.classified_products} (${data.classification_pct}%)` : '-';
+                    document.getElementById('progress').style.width = (data.classification_pct || 0) + '%';
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        async function runAction(action) {
+            const endpoints = {
+                'import': `/api/tenants/${TENANT_ID}/import`,
+                'classify': `/api/tenants/${TENANT_ID}/classify-products`,
+                'metrics': `/api/tenants/${TENANT_ID}/calculate-metrics`
+            };
+            const names = {
+                'import': 'Импорт',
+                'classify': 'Классификация',
+                'metrics': 'Пересчёт метрик'
+            };
+
+            log(`Запуск: ${names[action]}...`, 'info');
+
+            try {
+                const resp = await fetch(endpoints[action], { method: 'POST' });
+                const data = await resp.json();
+
+                if (resp.ok) {
+                    log(`${names[action]} завершён: ${JSON.stringify(data)}`, 'success');
+                } else {
+                    log(`Ошибка: ${data.detail || JSON.stringify(data)}`, 'error');
+                }
+            } catch (e) {
+                log(`Ошибка сети: ${e.message}`, 'error');
+            }
+
+            loadStats();
+        }
+
+        // Load stats on page load and every 30 seconds
+        loadStats();
+        setInterval(loadStats, 30000);
+    </script>
+</body>
+</html>
+"""
+
+@admin_router.get("/admin", response_class=HTMLResponse)
+def admin_page():
+    """Admin UI for managing imports and classifications."""
+    return ADMIN_HTML
 
 
 # ============================================
@@ -66,6 +247,43 @@ def get_tenant(tenant_id: str, db: Session = Depends(get_db)):
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
+
+
+@router.get("/tenants/{tenant_id}/stats")
+def get_tenant_stats(tenant_id: str, db: Session = Depends(get_db)):
+    """Get tenant statistics for admin panel."""
+    from app.models import Transaction, Product
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    total_customers = db.query(func.count(Customer.id)).filter(
+        Customer.tenant_id == tenant_id
+    ).scalar() or 0
+
+    total_transactions = db.query(func.count(Transaction.id)).filter(
+        Transaction.tenant_id == tenant_id
+    ).scalar() or 0
+
+    total_products = db.query(func.count(Product.id)).filter(
+        Product.tenant_id == tenant_id
+    ).scalar() or 0
+
+    classified_products = db.query(func.count(Product.id)).filter(
+        Product.tenant_id == tenant_id,
+        Product.category.isnot(None)
+    ).scalar() or 0
+
+    classification_pct = round(100 * classified_products / total_products, 1) if total_products > 0 else 0
+
+    return {
+        "total_customers": total_customers,
+        "total_transactions": total_transactions,
+        "total_products": total_products,
+        "classified_products": classified_products,
+        "classification_pct": classification_pct
+    }
 
 
 # ============================================
