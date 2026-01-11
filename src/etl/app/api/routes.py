@@ -29,6 +29,36 @@ from app.api.schemas import (
 router = APIRouter(prefix="/api", tags=["LCS API"])
 admin_router = APIRouter(tags=["Admin"])
 
+# Блокировка параллельных запусков
+import threading
+_running_tasks = {}  # {tenant_id: {task_type: started_at}}
+_tasks_lock = threading.Lock()
+
+
+def acquire_task_lock(tenant_id: str, task_type: str) -> bool:
+    """Try to acquire lock for a task. Returns True if successful."""
+    with _tasks_lock:
+        if tenant_id not in _running_tasks:
+            _running_tasks[tenant_id] = {}
+        if task_type in _running_tasks[tenant_id]:
+            return False  # Already running
+        from datetime import datetime
+        _running_tasks[tenant_id][task_type] = datetime.utcnow()
+        return True
+
+
+def release_task_lock(tenant_id: str, task_type: str):
+    """Release lock for a task."""
+    with _tasks_lock:
+        if tenant_id in _running_tasks and task_type in _running_tasks[tenant_id]:
+            del _running_tasks[tenant_id][task_type]
+
+
+def get_running_tasks(tenant_id: str) -> dict:
+    """Get currently running tasks for tenant."""
+    with _tasks_lock:
+        return dict(_running_tasks.get(tenant_id, {}))
+
 # ============================================
 # Admin UI
 # ============================================
@@ -221,8 +251,23 @@ ADMIN_HTML = """
                         d.total_customers - d.customers_with_metrics === 0 ? 'ok' : 'warn');
                     document.getElementById('progress-metrics').style.width = (d.metrics_pct || 0) + '%';
                     document.getElementById('last-metrics').textContent = formatDate(d.last_metrics);
+
+                    // Блокировка кнопок при запущенных задачах
+                    const running = d.running_tasks || [];
+                    updateButton('btn-import', running.includes('import'), 'Импорт выполняется...');
+                    updateButton('btn-classify', running.includes('classify'), 'Классификация выполняется...');
+                    updateButton('btn-metrics', running.includes('metrics'), 'Расчёт выполняется...');
                 }
             } catch (e) { console.error(e); }
+        }
+
+        function updateButton(btnClass, isRunning, runningText) {
+            const btn = document.querySelector('.' + btnClass);
+            if (!btn) return;
+            const origText = btn.dataset.origText || btn.textContent;
+            btn.dataset.origText = origText;
+            btn.disabled = isRunning;
+            btn.textContent = isRunning ? runningText : origText;
         }
 
         async function runAction(action) {
@@ -255,9 +300,9 @@ ADMIN_HTML = """
             loadStats();
         }
 
-        // Load stats on page load and every 30 seconds
+        // Load stats on page load and every 5 seconds
         loadStats();
-        setInterval(loadStats, 30000);
+        setInterval(loadStats, 5000);
     </script>
 </body>
 </html>
@@ -423,6 +468,8 @@ def get_tenant_stats(tenant_id: str, db: Session = Depends(get_db)):
         # Даты
         "last_import": last_import.isoformat() if last_import else None,
         "last_metrics": last_metrics.isoformat() if last_metrics else None,
+        # Запущенные задачи
+        "running_tasks": list(get_running_tasks(tenant_id).keys()),
     }
 
 
@@ -458,6 +505,9 @@ def import_data(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    if not acquire_task_lock(tenant_id, "import"):
+        raise HTTPException(status_code=409, detail="Импорт уже выполняется")
+
     try:
         importer = DataImporter(db, tenant_id)
         result = importer.import_all()
@@ -470,6 +520,8 @@ def import_data(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        release_task_lock(tenant_id, "import")
 
 
 @router.get("/tenants/{tenant_id}/import/history")
@@ -507,6 +559,9 @@ def calculate_metrics(tenant_id: str, db: Session = Depends(get_db)):
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    if not acquire_task_lock(tenant_id, "metrics"):
+        raise HTTPException(status_code=409, detail="Расчёт метрик уже выполняется")
+
     try:
         calculator = MetricsCalculator(db, tenant_id)
         result = calculator.calculate_all()
@@ -518,6 +573,8 @@ def calculate_metrics(tenant_id: str, db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        release_task_lock(tenant_id, "metrics")
 
 
 # ============================================
@@ -535,6 +592,9 @@ def classify_products(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    if not acquire_task_lock(tenant_id, "classify"):
+        raise HTTPException(status_code=409, detail="Классификация уже выполняется")
+
     try:
         classifier = ProductClassifier(db, tenant_id)
         result = classifier.classify_all(force=force)
@@ -547,6 +607,8 @@ def classify_products(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        release_task_lock(tenant_id, "classify")
 
 
 @router.get("/tenants/{tenant_id}/product-categories", response_model=List[CategoryStats])

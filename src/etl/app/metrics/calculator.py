@@ -71,17 +71,31 @@ class MetricsCalculator:
             Statistics about calculation
         """
         started_at = datetime.utcnow()
+        print(f"[METRICS] Начало расчёта метрик...")
+
+        # Удаляем все метрики перед расчётом
+        print(f"[METRICS] Очистка старых метрик...")
+        deleted = self.db.execute(
+            text("DELETE FROM customer_metrics WHERE tenant_id = :tid"),
+            {"tid": self.tenant_id}
+        )
+        self.db.commit()
+        print(f"[METRICS] Удалено {deleted.rowcount} записей")
 
         # Load transaction data into pandas for efficient calculations
+        print(f"[METRICS] Загрузка транзакций...")
         df = self._load_transaction_data()
+        print(f"[METRICS] Загружено {len(df)} транзакций")
 
         if df.empty:
             return {"status": "no_data", "customers": 0}
 
         # Group by customer
         customer_ids = df["customer_id"].unique()
+        total_customers = len(customer_ids)
         calculated = 0
         errors = 0
+        print(f"[METRICS] Обработка {total_customers} клиентов...")
 
         for customer_id in customer_ids:
             if not customer_id:
@@ -93,15 +107,20 @@ class MetricsCalculator:
                 self._save_metrics(customer_id, metrics)
                 calculated += 1
 
-                # Commit in batches
+                # Commit in batches and log progress
                 if calculated % 100 == 0:
                     self.db.commit()
+                    elapsed = (datetime.utcnow() - started_at).total_seconds()
+                    rate = calculated / elapsed if elapsed > 0 else 0
+                    eta = int((total_customers - calculated) / rate) if rate > 0 else 0
+                    print(f"[METRICS] {calculated}/{total_customers} ({100*calculated/total_customers:.1f}%) | {rate:.1f} клиентов/сек | ETA: {eta//60}мин {eta%60}сек")
 
             except Exception as e:
                 errors += 1
-                print(f"Error calculating metrics for {customer_id}: {e}")
+                print(f"[METRICS] Ошибка для {customer_id}: {e}")
 
         self.db.commit()
+        print(f"[METRICS] Готово! {calculated} клиентов за {(datetime.utcnow() - started_at).total_seconds():.0f} сек")
 
         return {
             "status": "success",
@@ -574,21 +593,10 @@ class MetricsCalculator:
 
     def _save_metrics(self, customer_id: str, metrics: dict) -> None:
         """Save calculated metrics to database."""
-        # Check if metrics exist
-        existing = self.db.query(CustomerMetrics).filter(
-            CustomerMetrics.tenant_id == self.tenant_id,
-            CustomerMetrics.customer_id == customer_id
-        ).first()
-
-        if existing:
-            for key, value in metrics.items():
-                setattr(existing, key, value)
-            existing.calculated_at = datetime.utcnow()
-        else:
-            customer_metrics = CustomerMetrics(
-                tenant_id=self.tenant_id,
-                customer_id=customer_id,
-                calculated_at=datetime.utcnow(),
-                **metrics
-            )
-            self.db.add(customer_metrics)
+        customer_metrics = CustomerMetrics(
+            tenant_id=self.tenant_id,
+            customer_id=customer_id,
+            calculated_at=datetime.utcnow(),
+            **metrics
+        )
+        self.db.add(customer_metrics)
