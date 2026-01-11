@@ -3,13 +3,12 @@
 from datetime import datetime, date
 from decimal import Decimal
 from typing import Optional
-from uuid import UUID
 
 from sqlalchemy import (
     Column, String, DateTime, Boolean, Integer, BigInteger,
     Numeric, Date, ForeignKey, Text, UniqueConstraint
 )
-from sqlalchemy.dialects.mssql import UNIQUEIDENTIFIER
+from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -20,7 +19,7 @@ class Tenant(Base):
 
     __tablename__ = "tenants"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
     code = Column(String(50), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
     import_path = Column(String(500))
@@ -33,8 +32,8 @@ class CustomerGroup(Base):
 
     __tablename__ = "customer_groups"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     code = Column(String(50))
     name = Column(String(255))
 
@@ -44,14 +43,14 @@ class Customer(Base):
 
     __tablename__ = "customers"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     code = Column(String(50))
     name = Column(String(255))
     accumulated_amount = Column(Numeric(18, 2))
     birth_date = Column(Date)
     is_active = Column(Boolean, default=True)
-    group_id = Column(UNIQUEIDENTIFIER)
+    group_id = Column(PGUUID(as_uuid=True))
     last_updated = Column(DateTime)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -61,11 +60,11 @@ class Store(Base):
 
     __tablename__ = "stores"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     code = Column(String(50))
     name = Column(String(255))
-    manager_id = Column(UNIQUEIDENTIFIER)
+    manager_id = Column(PGUUID(as_uuid=True))
 
 
 class Employee(Base):
@@ -73,8 +72,8 @@ class Employee(Base):
 
     __tablename__ = "employees"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     code = Column(String(50))
     name = Column(String(255))
 
@@ -84,8 +83,8 @@ class Manager(Base):
 
     __tablename__ = "managers"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     code = Column(String(50))
     name = Column(String(255))
 
@@ -95,8 +94,8 @@ class Product(Base):
 
     __tablename__ = "products"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     code = Column(String(50))
     name = Column(String(500))
     category = Column(String(255))
@@ -109,8 +108,8 @@ class Discount(Base):
 
     __tablename__ = "discounts"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
     name = Column(String(255))
 
 
@@ -120,8 +119,8 @@ class CustomerIdentifier(Base):
     __tablename__ = "customer_identifiers"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), nullable=False)
-    customer_id = Column(UNIQUEIDENTIFIER, nullable=False)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    customer_id = Column(PGUUID(as_uuid=True), nullable=False)
     identifier = Column(String(100), nullable=False)
 
 
@@ -130,16 +129,16 @@ class Transaction(Base):
 
     __tablename__ = "transactions"
 
-    id = Column(UNIQUEIDENTIFIER, primary_key=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), primary_key=True)
-    customer_id = Column(UNIQUEIDENTIFIER)
+    id = Column(PGUUID(as_uuid=True), primary_key=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), primary_key=True)
+    customer_id = Column(PGUUID(as_uuid=True))
     transaction_date = Column(DateTime, nullable=False)
     transaction_hour = Column(Integer)
     amount = Column(Numeric(18, 2))
     amount_before_discount = Column(Numeric(18, 2))
     discount_percent = Column(Numeric(5, 2))
-    store_id = Column(UNIQUEIDENTIFIER)
-    employee_id = Column(UNIQUEIDENTIFIER)
+    store_id = Column(PGUUID(as_uuid=True))
+    employee_id = Column(PGUUID(as_uuid=True))
     duration_seconds = Column(Integer)
 
 
@@ -149,13 +148,13 @@ class TransactionItem(Base):
     __tablename__ = "transaction_items"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    transaction_id = Column(UNIQUEIDENTIFIER, nullable=False)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), nullable=False)
-    product_id = Column(UNIQUEIDENTIFIER, nullable=False)
+    transaction_id = Column(PGUUID(as_uuid=True), nullable=False)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    product_id = Column(PGUUID(as_uuid=True), nullable=False)
     quantity = Column(Numeric(18, 3))
     price = Column(Numeric(18, 2))
     price_before_discount = Column(Numeric(18, 2))
-    discount_id = Column(UNIQUEIDENTIFIER)
+    discount_id = Column(PGUUID(as_uuid=True))
 
 
 class BonusMovement(Base):
@@ -164,9 +163,9 @@ class BonusMovement(Base):
     __tablename__ = "bonus_movements"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), nullable=False)
-    customer_id = Column(UNIQUEIDENTIFIER, nullable=False)
-    transaction_id = Column(UNIQUEIDENTIFIER)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    customer_id = Column(PGUUID(as_uuid=True), nullable=False)
+    transaction_id = Column(PGUUID(as_uuid=True))
     amount = Column(Numeric(18, 2))
     movement_type = Column(String(20), nullable=False)  # 'accrual' / 'redemption'
     movement_date = Column(DateTime)
@@ -178,8 +177,8 @@ class BonusBalance(Base):
     __tablename__ = "bonus_balances"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), nullable=False)
-    customer_id = Column(UNIQUEIDENTIFIER, nullable=False)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    customer_id = Column(PGUUID(as_uuid=True), nullable=False)
     balance = Column(Numeric(18, 2))
     updated_at = Column(DateTime, default=datetime.utcnow)
 
@@ -194,8 +193,8 @@ class CustomerMetrics(Base):
     __tablename__ = "customer_metrics"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), nullable=False)
-    customer_id = Column(UNIQUEIDENTIFIER, nullable=False)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
+    customer_id = Column(PGUUID(as_uuid=True), nullable=False)
 
     # Basic transactional (11 metrics)
     total_orders = Column(Integer)
@@ -281,7 +280,7 @@ class ImportLog(Base):
     __tablename__ = "import_logs"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
-    tenant_id = Column(UNIQUEIDENTIFIER, ForeignKey("tenants.id"), nullable=False)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False)
     file_name = Column(String(255))
     records_count = Column(Integer)
     status = Column(String(50))  # 'success', 'error', 'partial'

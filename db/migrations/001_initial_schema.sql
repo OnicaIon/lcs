@@ -1,246 +1,190 @@
 -- LCS: Customer Segmentation System
--- Initial database schema
+-- Initial database schema for PostgreSQL
 -- Multi-tenant architecture
 
-USE master;
-GO
-
--- Create database if not exists
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = N'lcs')
-BEGIN
-    CREATE DATABASE lcs;
-END
-GO
-
-USE lcs;
-GO
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ============================================
 -- TENANTS (1C databases)
 -- ============================================
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'tenants')
-CREATE TABLE tenants (
-    id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
-    code NVARCHAR(50) UNIQUE NOT NULL,
-    name NVARCHAR(255) NOT NULL,
-    import_path NVARCHAR(500),
-    created_at DATETIME2 DEFAULT GETDATE(),
-    is_active BIT DEFAULT 1
+CREATE TABLE IF NOT EXISTS tenants (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    import_path VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
 );
-GO
 
 -- ============================================
 -- СПРАВОЧНИКИ
 -- ============================================
 
 -- Группы клиентов
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'customer_groups')
-CREATE TABLE customer_groups (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    code NVARCHAR(50),
-    name NVARCHAR(255),
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS customer_groups (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    code VARCHAR(50),
+    name VARCHAR(255),
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
 -- Клиенты
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'customers')
-CREATE TABLE customers (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    code NVARCHAR(50),
-    name NVARCHAR(255),
+CREATE TABLE IF NOT EXISTS customers (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    code VARCHAR(50),
+    name VARCHAR(255),
     accumulated_amount DECIMAL(18,2),
     birth_date DATE,
-    is_active BIT DEFAULT 1,
-    group_id UNIQUEIDENTIFIER,
-    last_updated DATETIME2,
-    created_at DATETIME2 DEFAULT GETDATE(),
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    is_active BOOLEAN DEFAULT TRUE,
+    group_id UUID,
+    last_updated TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
-CREATE INDEX ix_customers_tenant ON customers(tenant_id);
-CREATE INDEX ix_customers_group ON customers(tenant_id, group_id);
-GO
+CREATE INDEX IF NOT EXISTS ix_customers_tenant ON customers(tenant_id);
+CREATE INDEX IF NOT EXISTS ix_customers_group ON customers(tenant_id, group_id);
 
 -- Торговые точки
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'stores')
-CREATE TABLE stores (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    code NVARCHAR(50),
-    name NVARCHAR(255),
-    manager_id UNIQUEIDENTIFIER,
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS stores (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    code VARCHAR(50),
+    name VARCHAR(255),
+    manager_id UUID,
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
 -- Сотрудники
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'employees')
-CREATE TABLE employees (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    code NVARCHAR(50),
-    name NVARCHAR(255),
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS employees (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    code VARCHAR(50),
+    name VARCHAR(255),
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
 -- Менеджеры касс
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'managers')
-CREATE TABLE managers (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    code NVARCHAR(50),
-    name NVARCHAR(255),
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS managers (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    code VARCHAR(50),
+    name VARCHAR(255),
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
 -- Номенклатура
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'products')
-CREATE TABLE products (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    code NVARCHAR(50),
-    name NVARCHAR(500),
-    category NVARCHAR(255),
+CREATE TABLE IF NOT EXISTS products (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    code VARCHAR(50),
+    name VARCHAR(500),
+    category VARCHAR(255),
     category_confidence DECIMAL(3,2),
-    classified_at DATETIME2,
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    classified_at TIMESTAMP,
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
-CREATE INDEX ix_products_tenant ON products(tenant_id);
-CREATE INDEX ix_products_category ON products(tenant_id, category);
-GO
+CREATE INDEX IF NOT EXISTS ix_products_tenant ON products(tenant_id);
+CREATE INDEX IF NOT EXISTS ix_products_category ON products(tenant_id, category);
 
 -- Скидки / Условия
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'discounts')
-CREATE TABLE discounts (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    name NVARCHAR(255),
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS discounts (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    name VARCHAR(255),
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
 -- Идентификаторы клиентов (карты лояльности)
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'customer_identifiers')
-CREATE TABLE customer_identifiers (
-    id BIGINT IDENTITY PRIMARY KEY,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    customer_id UNIQUEIDENTIFIER NOT NULL,
-    identifier NVARCHAR(100) NOT NULL,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS customer_identifiers (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    customer_id UUID NOT NULL,
+    identifier VARCHAR(100) NOT NULL
 );
-GO
 
-CREATE INDEX ix_identifiers_tenant_customer ON customer_identifiers(tenant_id, customer_id);
-CREATE INDEX ix_identifiers_identifier ON customer_identifiers(identifier);
-GO
+CREATE INDEX IF NOT EXISTS ix_identifiers_tenant_customer ON customer_identifiers(tenant_id, customer_id);
+CREATE INDEX IF NOT EXISTS ix_identifiers_identifier ON customer_identifiers(identifier);
 
 -- ============================================
 -- ТРАНЗАКЦИИ
 -- ============================================
 
 -- Заголовки чеков
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'transactions')
-CREATE TABLE transactions (
-    id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    customer_id UNIQUEIDENTIFIER,
-    transaction_date DATETIME2 NOT NULL,
+CREATE TABLE IF NOT EXISTS transactions (
+    id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    customer_id UUID,
+    transaction_date TIMESTAMP NOT NULL,
     transaction_hour INT,
     amount DECIMAL(18,2),
     amount_before_discount DECIMAL(18,2),
     discount_percent DECIMAL(5,2),
-    store_id UNIQUEIDENTIFIER,
-    employee_id UNIQUEIDENTIFIER,
+    store_id UUID,
+    employee_id UUID,
     duration_seconds INT,
-    PRIMARY KEY (id, tenant_id),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    PRIMARY KEY (id, tenant_id)
 );
-GO
 
-CREATE INDEX ix_transactions_tenant_date ON transactions(tenant_id, transaction_date);
-CREATE INDEX ix_transactions_customer ON transactions(tenant_id, customer_id);
-CREATE INDEX ix_transactions_store ON transactions(tenant_id, store_id);
-GO
+CREATE INDEX IF NOT EXISTS ix_transactions_tenant_date ON transactions(tenant_id, transaction_date);
+CREATE INDEX IF NOT EXISTS ix_transactions_customer ON transactions(tenant_id, customer_id);
+CREATE INDEX IF NOT EXISTS ix_transactions_store ON transactions(tenant_id, store_id);
 
 -- Строки чеков
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'transaction_items')
-CREATE TABLE transaction_items (
-    id BIGINT IDENTITY PRIMARY KEY,
-    transaction_id UNIQUEIDENTIFIER NOT NULL,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    product_id UNIQUEIDENTIFIER NOT NULL,
+CREATE TABLE IF NOT EXISTS transaction_items (
+    id BIGSERIAL PRIMARY KEY,
+    transaction_id UUID NOT NULL,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    product_id UUID NOT NULL,
     quantity DECIMAL(18,3),
     price DECIMAL(18,2),
     price_before_discount DECIMAL(18,2),
-    discount_id UNIQUEIDENTIFIER,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    discount_id UUID
 );
-GO
 
-CREATE INDEX ix_items_transaction ON transaction_items(tenant_id, transaction_id);
-CREATE INDEX ix_items_product ON transaction_items(tenant_id, product_id);
-GO
+CREATE INDEX IF NOT EXISTS ix_items_transaction ON transaction_items(tenant_id, transaction_id);
+CREATE INDEX IF NOT EXISTS ix_items_product ON transaction_items(tenant_id, product_id);
 
 -- ============================================
 -- БОНУСНАЯ СИСТЕМА
 -- ============================================
 
 -- Движения бонусов
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'bonus_movements')
-CREATE TABLE bonus_movements (
-    id BIGINT IDENTITY PRIMARY KEY,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    customer_id UNIQUEIDENTIFIER NOT NULL,
-    transaction_id UNIQUEIDENTIFIER,
+CREATE TABLE IF NOT EXISTS bonus_movements (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    customer_id UUID NOT NULL,
+    transaction_id UUID,
     amount DECIMAL(18,2),
-    movement_type NVARCHAR(20) NOT NULL, -- 'accrual' / 'redemption'
-    movement_date DATETIME2,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    movement_type VARCHAR(20) NOT NULL, -- 'accrual' / 'redemption'
+    movement_date TIMESTAMP
 );
-GO
 
-CREATE INDEX ix_bonus_tenant_customer ON bonus_movements(tenant_id, customer_id);
-CREATE INDEX ix_bonus_date ON bonus_movements(tenant_id, movement_date);
-GO
+CREATE INDEX IF NOT EXISTS ix_bonus_tenant_customer ON bonus_movements(tenant_id, customer_id);
+CREATE INDEX IF NOT EXISTS ix_bonus_date ON bonus_movements(tenant_id, movement_date);
 
 -- Остатки бонусов
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'bonus_balances')
-CREATE TABLE bonus_balances (
-    id BIGINT IDENTITY PRIMARY KEY,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    customer_id UNIQUEIDENTIFIER NOT NULL,
+CREATE TABLE IF NOT EXISTS bonus_balances (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    customer_id UUID NOT NULL,
     balance DECIMAL(18,2),
-    updated_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (tenant_id, customer_id)
 );
-GO
 
 -- ============================================
 -- МЕТРИКИ КЛИЕНТОВ
 -- ============================================
 
--- Рассчитанные метрики (денормализованная таблица для быстрого доступа)
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'customer_metrics')
-CREATE TABLE customer_metrics (
-    id BIGINT IDENTITY PRIMARY KEY,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    customer_id UNIQUEIDENTIFIER NOT NULL,
+CREATE TABLE IF NOT EXISTS customer_metrics (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    customer_id UUID NOT NULL,
 
     -- Базовые транзакционные (11 метрик)
     total_orders INT,
@@ -260,7 +204,7 @@ CREATE TABLE customer_metrics (
     frequency DECIMAL(18,4),
     monetary DECIMAL(18,2),
     rfm_score INT,
-    rfm_segment NVARCHAR(50),
+    rfm_segment VARCHAR(50),
 
     -- Временные паттерны (10 метрик)
     customer_age_days INT,
@@ -275,19 +219,19 @@ CREATE TABLE customer_metrics (
     activity_rate DECIMAL(5,4),
 
     -- Жизненный цикл (8 метрик)
-    lifecycle_stage NVARCHAR(50),
+    lifecycle_stage VARCHAR(50),
     sleep_days INT,
     sleep_factor DECIMAL(18,4),
-    is_new BIT,
-    is_active BIT,
-    is_sleeping BIT,
-    is_churned BIT,
-    cohort NVARCHAR(7), -- YYYY-MM
+    is_new BOOLEAN,
+    is_active BOOLEAN,
+    is_sleeping BOOLEAN,
+    is_churned BOOLEAN,
+    cohort VARCHAR(7), -- YYYY-MM
 
     -- Ценность клиента (11 метрик)
     clv_historical DECIMAL(18,2),
     clv_predicted DECIMAL(18,2),
-    clv_segment NVARCHAR(50),
+    clv_segment VARCHAR(50),
     abc_segment CHAR(1),
     xyz_segment CHAR(1),
     abc_xyz_segment CHAR(2),
@@ -300,67 +244,54 @@ CREATE TABLE customer_metrics (
     -- Предиктивные (6 метрик)
     prob_alive DECIMAL(5,4),
     churn_probability DECIMAL(5,4),
-    churn_risk_segment NVARCHAR(50),
+    churn_risk_segment VARCHAR(50),
     predicted_orders_30d DECIMAL(18,4),
     predicted_orders_90d DECIMAL(18,4),
     predicted_revenue_30d DECIMAL(18,2),
 
     -- Продуктовые предпочтения (5 метрик)
-    favorite_category NVARCHAR(255),
-    favorite_sku NVARCHAR(500),
+    favorite_category VARCHAR(255),
+    favorite_sku VARCHAR(500),
     category_diversity INT,
     sku_diversity INT,
     cross_sell_potential DECIMAL(5,4),
 
     -- Метаданные
-    calculated_at DATETIME2 DEFAULT GETDATE(),
+    calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id),
     UNIQUE (tenant_id, customer_id)
 );
-GO
 
-CREATE INDEX ix_metrics_tenant ON customer_metrics(tenant_id);
-CREATE INDEX ix_metrics_rfm ON customer_metrics(tenant_id, rfm_segment);
-CREATE INDEX ix_metrics_lifecycle ON customer_metrics(tenant_id, lifecycle_stage);
-CREATE INDEX ix_metrics_abc ON customer_metrics(tenant_id, abc_segment);
-GO
+CREATE INDEX IF NOT EXISTS ix_metrics_tenant ON customer_metrics(tenant_id);
+CREATE INDEX IF NOT EXISTS ix_metrics_rfm ON customer_metrics(tenant_id, rfm_segment);
+CREATE INDEX IF NOT EXISTS ix_metrics_lifecycle ON customer_metrics(tenant_id, lifecycle_stage);
+CREATE INDEX IF NOT EXISTS ix_metrics_abc ON customer_metrics(tenant_id, abc_segment);
 
 -- ============================================
 -- АНКЕТЫ КЛИЕНТОВ
 -- ============================================
 
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'customer_surveys')
-CREATE TABLE customer_surveys (
-    id BIGINT IDENTITY PRIMARY KEY,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    customer_id UNIQUEIDENTIFIER NOT NULL,
-    survey_data NVARCHAR(MAX), -- JSON с ответами
-    created_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+CREATE TABLE IF NOT EXISTS customer_surveys (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    customer_id UUID NOT NULL,
+    survey_data JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-GO
 
 -- ============================================
 -- ИСТОРИЯ ИМПОРТА
 -- ============================================
 
-IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'import_logs')
-CREATE TABLE import_logs (
-    id BIGINT IDENTITY PRIMARY KEY,
-    tenant_id UNIQUEIDENTIFIER NOT NULL,
-    file_name NVARCHAR(255),
+CREATE TABLE IF NOT EXISTS import_logs (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    file_name VARCHAR(255),
     records_count INT,
-    status NVARCHAR(50), -- 'success', 'error', 'partial'
-    error_message NVARCHAR(MAX),
-    started_at DATETIME2,
-    finished_at DATETIME2,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id)
+    status VARCHAR(50), -- 'success', 'error', 'partial'
+    error_message TEXT,
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP
 );
-GO
 
-CREATE INDEX ix_import_logs_tenant ON import_logs(tenant_id, started_at DESC);
-GO
-
-PRINT 'LCS database schema created successfully';
-GO
+CREATE INDEX IF NOT EXISTS ix_import_logs_tenant ON import_logs(tenant_id, started_at DESC);

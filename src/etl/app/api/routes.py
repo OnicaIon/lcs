@@ -9,14 +9,15 @@ from sqlalchemy import func
 
 from app.database import get_db
 from app.models import Tenant, Customer, CustomerMetrics, ImportLog
-from app.services import DataImporter, Parser1C
+from app.services import DataImporter, Parser1C, ProductClassifier
 from app.services.importer import create_tenant
 from app.metrics import MetricsCalculator
 from app.api.schemas import (
     TenantCreate, TenantResponse, TenantList,
     ImportStatus, FileInfo,
     CustomerResponse, CustomerList, CustomerMetricsResponse, CustomerWithMetrics,
-    CalculationResult, DashboardStats, SegmentStats
+    CalculationResult, DashboardStats, SegmentStats,
+    ClassificationResult, CategoryStats
 )
 
 router = APIRouter(prefix="/api", tags=["LCS API"])
@@ -154,6 +155,47 @@ def calculate_metrics(tenant_id: str, db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# Classification Endpoints
+# ============================================
+
+@router.post("/tenants/{tenant_id}/classify-products", response_model=ClassificationResult)
+def classify_products(
+    tenant_id: str,
+    force: bool = Query(default=False, description="Reclassify all products"),
+    db: Session = Depends(get_db)
+):
+    """Classify products using LLM."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    try:
+        classifier = ProductClassifier(db, tenant_id)
+        result = classifier.classify_all(force=force)
+        return ClassificationResult(
+            status=result.get("status", "success"),
+            total=result.get("total", 0),
+            classified=result.get("classified", 0),
+            errors=result.get("errors", 0),
+            duration_seconds=result.get("duration_seconds", 0)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/tenants/{tenant_id}/product-categories", response_model=List[CategoryStats])
+def get_product_categories(tenant_id: str, db: Session = Depends(get_db)):
+    """Get product category statistics."""
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    classifier = ProductClassifier(db, tenant_id)
+    stats = classifier.get_category_stats()
+    return [CategoryStats(**s) for s in stats]
 
 
 # ============================================

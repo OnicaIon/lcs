@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Optional, List, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 
 # ============================================
@@ -21,12 +21,16 @@ class TenantCreate(BaseModel):
 
 class TenantResponse(BaseModel):
     """Schema for tenant response."""
-    id: str
+    id: Any  # UUID from SQLAlchemy
     code: str
     name: str
     import_path: Optional[str]
     created_at: datetime
     is_active: bool
+
+    @field_serializer('id')
+    def serialize_id(self, v):
+        return str(v) if v else None
 
     class Config:
         from_attributes = True
@@ -206,3 +210,22 @@ class DashboardStats(BaseModel):
     rfm_segments: List[SegmentStats]
     lifecycle_segments: List[SegmentStats]
     abc_segments: List[SegmentStats]
+
+
+# ============================================
+# Classification Schemas
+# ============================================
+
+class ClassificationResult(BaseModel):
+    """Schema for product classification result."""
+    status: str
+    total: int
+    classified: int
+    errors: int
+    duration_seconds: float
+
+
+class CategoryStats(BaseModel):
+    """Schema for category statistics."""
+    category: str
+    count: int

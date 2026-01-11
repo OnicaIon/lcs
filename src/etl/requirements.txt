@@ -5,7 +5,7 @@ python-multipart==0.0.6
 
 # Database
 sqlalchemy==2.0.25
-pyodbc==5.0.1
+psycopg2-binary==2.9.9
 
 # Data Processing
 pandas==2.1.4
