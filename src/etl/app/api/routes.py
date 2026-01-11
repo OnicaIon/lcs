@@ -47,92 +47,106 @@ ADMIN_HTML = """
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh; padding: 2rem; color: #fff;
         }
-        .container { max-width: 900px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; }
         h1 { text-align: center; margin-bottom: 2rem; font-size: 2.5rem; }
-        .status { background: #0f3460; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; }
-        .status h2 { margin-bottom: 1rem; color: #e94560; }
-        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; }
-        .stat { background: #1a1a2e; padding: 1rem; border-radius: 8px; text-align: center; }
-        .stat-value { font-size: 1.8rem; font-weight: bold; color: #e94560; }
-        .stat-label { font-size: 0.9rem; color: #aaa; margin-top: 0.3rem; }
-        .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; }
-        .action-card {
-            background: #0f3460; border-radius: 12px; padding: 1.5rem;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .action-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(233,69,96,0.3); }
-        .action-card h3 { margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
-        .action-card p { color: #aaa; font-size: 0.9rem; margin-bottom: 1rem; }
+        .section { background: #0f3460; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+        .section h2 { margin-bottom: 1rem; color: #e94560; font-size: 1.2rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.8rem; }
+        .stat { background: #1a1a2e; padding: 0.8rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 1.4rem; font-weight: bold; color: #e94560; }
+        .stat-label { font-size: 0.75rem; color: #aaa; margin-top: 0.2rem; }
+        .stat.ok .stat-value { color: #4caf50; }
+        .stat.warn .stat-value { color: #ff9800; }
+        .stat.none .stat-value { color: #666; }
+        .actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; }
+        .action-card { background: #0f3460; border-radius: 12px; padding: 1.2rem; }
+        .action-card h3 { margin-bottom: 0.4rem; font-size: 1rem; }
+        .action-card p { color: #aaa; font-size: 0.8rem; margin-bottom: 0.8rem; }
         button {
-            width: 100%; padding: 1rem; border: none; border-radius: 8px;
-            font-size: 1rem; font-weight: 600; cursor: pointer;
-            transition: background 0.2s;
+            width: 100%; padding: 0.8rem; border: none; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
         }
         .btn-import { background: #4caf50; color: white; }
-        .btn-import:hover { background: #45a049; }
         .btn-classify { background: #2196f3; color: white; }
-        .btn-classify:hover { background: #1976d2; }
         .btn-metrics { background: #ff9800; color: white; }
-        .btn-metrics:hover { background: #f57c00; }
         button:disabled { background: #555; cursor: not-allowed; }
+        .progress { height: 6px; background: #1a1a2e; border-radius: 4px; margin-top: 0.5rem; overflow: hidden; }
+        .progress-bar { height: 100%; transition: width 0.3s; }
+        .progress-bar.green { background: #4caf50; }
+        .progress-bar.blue { background: #2196f3; }
+        .progress-bar.orange { background: #ff9800; }
         .log {
             background: #1a1a2e; border-radius: 8px; padding: 1rem;
-            margin-top: 2rem; max-height: 300px; overflow-y: auto;
-            font-family: monospace; font-size: 0.85rem;
+            margin-top: 1rem; max-height: 200px; overflow-y: auto;
+            font-family: monospace; font-size: 0.8rem;
         }
-        .log-entry { padding: 0.3rem 0; border-bottom: 1px solid #333; }
+        .log-entry { padding: 0.2rem 0; border-bottom: 1px solid #333; }
         .log-time { color: #666; }
         .log-success { color: #4caf50; }
         .log-error { color: #f44336; }
         .log-info { color: #2196f3; }
-        .progress { height: 8px; background: #1a1a2e; border-radius: 4px; margin-top: 0.5rem; overflow: hidden; }
-        .progress-bar { height: 100%; background: #e94560; transition: width 0.3s; }
+        .date-info { font-size: 0.75rem; color: #888; margin-top: 0.5rem; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🏪 LCS Admin Panel</h1>
+        <h1>LCS Admin Panel</h1>
 
-        <div class="status">
-            <h2>📊 Статус системы</h2>
-            <div class="status-grid">
-                <div class="stat">
-                    <div class="stat-value" id="customers">-</div>
-                    <div class="stat-label">Клиентов</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="transactions">-</div>
-                    <div class="stat-label">Транзакций</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="products">-</div>
-                    <div class="stat-label">Товаров</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value" id="classified">-</div>
-                    <div class="stat-label">Классифицировано</div>
-                </div>
+        <div class="section">
+            <h2>📚 Справочники</h2>
+            <div class="grid">
+                <div class="stat" id="stat-customers"><div class="stat-value">-</div><div class="stat-label">Клиенты</div></div>
+                <div class="stat" id="stat-products"><div class="stat-value">-</div><div class="stat-label">Товары</div></div>
+                <div class="stat" id="stat-stores"><div class="stat-value">-</div><div class="stat-label">Магазины</div></div>
+                <div class="stat" id="stat-employees"><div class="stat-value">-</div><div class="stat-label">Сотрудники</div></div>
+                <div class="stat" id="stat-groups"><div class="stat-value">-</div><div class="stat-label">Группы</div></div>
+                <div class="stat" id="stat-discounts"><div class="stat-value">-</div><div class="stat-label">Скидки</div></div>
             </div>
-            <div class="progress"><div class="progress-bar" id="progress" style="width: 0%"></div></div>
+            <div class="date-info">Последний импорт: <span id="last-import">-</span></div>
+        </div>
+
+        <div class="section">
+            <h2>🧾 Транзакции</h2>
+            <div class="grid">
+                <div class="stat" id="stat-transactions"><div class="stat-value">-</div><div class="stat-label">Чеков</div></div>
+                <div class="stat" id="stat-items"><div class="stat-value">-</div><div class="stat-label">Строк</div></div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🏷️ Классификация товаров</h2>
+            <div class="grid">
+                <div class="stat" id="stat-classified"><div class="stat-value">-</div><div class="stat-label">Классифицировано</div></div>
+                <div class="stat" id="stat-unclassified"><div class="stat-value">-</div><div class="stat-label">Без категории</div></div>
+            </div>
+            <div class="progress"><div class="progress-bar blue" id="progress-classify" style="width: 0%"></div></div>
+        </div>
+
+        <div class="section">
+            <h2>📊 Метрики клиентов (56 метрик)</h2>
+            <div class="grid">
+                <div class="stat" id="stat-with-metrics"><div class="stat-value">-</div><div class="stat-label">С метриками</div></div>
+                <div class="stat" id="stat-no-metrics"><div class="stat-value">-</div><div class="stat-label">Без метрик</div></div>
+            </div>
+            <div class="progress"><div class="progress-bar orange" id="progress-metrics" style="width: 0%"></div></div>
+            <div class="date-info">Последний расчёт: <span id="last-metrics">-</span></div>
         </div>
 
         <div class="actions">
             <div class="action-card">
                 <h3>🔄 Импорт данных</h3>
-                <p>Повторный импорт всех данных из файлов 1С. Обновит клиентов, транзакции и товары.</p>
+                <p>Загрузить данные из файлов 1С (справочники + транзакции)</p>
                 <button class="btn-import" onclick="runAction('import')">Запустить импорт</button>
             </div>
-
             <div class="action-card">
-                <h3>🤖 Классификация товаров</h3>
-                <p>LLM классификация товаров по категориям с помощью Ollama.</p>
-                <button class="btn-classify" onclick="runAction('classify')">Запустить классификацию</button>
+                <h3>🤖 Классификация</h3>
+                <p>LLM классификация товаров по категориям</p>
+                <button class="btn-classify" onclick="runAction('classify')">Запустить</button>
             </div>
-
             <div class="action-card">
-                <h3>📊 Пересчёт метрик</h3>
-                <p>Пересчитать все 51 метрику для всех клиентов.</p>
-                <button class="btn-metrics" onclick="runAction('metrics')">Пересчитать метрики</button>
+                <h3>📊 Метрики</h3>
+                <p>Пересчитать все 56 метрик для клиентов</p>
+                <button class="btn-metrics" onclick="runAction('metrics')">Пересчитать</button>
             </div>
         </div>
 
@@ -150,17 +164,51 @@ ADMIN_HTML = """
             logEl.innerHTML = `<div class="log-entry log-${type}"><span class="log-time">[${time}]</span> ${msg}</div>` + logEl.innerHTML;
         }
 
+        function setStat(id, value, status = '') {
+            const el = document.getElementById(id);
+            if (el) {
+                el.querySelector('.stat-value').textContent = value?.toLocaleString() || '-';
+                el.className = 'stat ' + status;
+            }
+        }
+
+        function formatDate(isoDate) {
+            if (!isoDate) return 'никогда';
+            const d = new Date(isoDate);
+            return d.toLocaleDateString('ru') + ' ' + d.toLocaleTimeString('ru');
+        }
+
         async function loadStats() {
             try {
                 const resp = await fetch(`/api/tenants/${TENANT_ID}/stats`);
                 if (resp.ok) {
-                    const data = await resp.json();
-                    document.getElementById('customers').textContent = data.total_customers?.toLocaleString() || '-';
-                    document.getElementById('transactions').textContent = data.total_transactions?.toLocaleString() || '-';
-                    document.getElementById('products').textContent = data.total_products?.toLocaleString() || '-';
-                    document.getElementById('classified').textContent =
-                        data.classified_products ? `${data.classified_products} (${data.classification_pct}%)` : '-';
-                    document.getElementById('progress').style.width = (data.classification_pct || 0) + '%';
+                    const d = await resp.json();
+
+                    // Справочники
+                    setStat('stat-customers', d.total_customers, d.total_customers > 0 ? 'ok' : 'none');
+                    setStat('stat-products', d.total_products, d.total_products > 0 ? 'ok' : 'none');
+                    setStat('stat-stores', d.total_stores, d.total_stores > 0 ? 'ok' : 'none');
+                    setStat('stat-employees', d.total_employees, d.total_employees > 0 ? 'ok' : 'none');
+                    setStat('stat-groups', d.total_groups, d.total_groups > 0 ? 'ok' : 'none');
+                    setStat('stat-discounts', d.total_discounts, d.total_discounts > 0 ? 'ok' : 'none');
+                    document.getElementById('last-import').textContent = formatDate(d.last_import);
+
+                    // Транзакции
+                    setStat('stat-transactions', d.total_transactions, d.total_transactions > 0 ? 'ok' : 'none');
+                    setStat('stat-items', d.total_items, d.total_items > 0 ? 'ok' : 'none');
+
+                    // Классификация
+                    setStat('stat-classified', d.classified_products, d.classification_pct >= 100 ? 'ok' : 'warn');
+                    setStat('stat-unclassified', d.total_products - d.classified_products,
+                        d.total_products - d.classified_products === 0 ? 'ok' : 'warn');
+                    document.getElementById('progress-classify').style.width = (d.classification_pct || 0) + '%';
+
+                    // Метрики
+                    setStat('stat-with-metrics', d.customers_with_metrics, d.metrics_pct >= 100 ? 'ok' : 'warn');
+                    setStat('stat-no-metrics', d.total_customers - d.customers_with_metrics,
+                        d.total_customers - d.customers_with_metrics === 0 ? 'ok' : 'warn');
+                    document.getElementById('progress-metrics').style.width = (d.metrics_pct || 0) + '%';
+                    document.getElementById('last-metrics').textContent = formatDate(d.last_metrics);
                 }
             } catch (e) { console.error(e); }
         }
@@ -252,24 +300,50 @@ def get_tenant(tenant_id: str, db: Session = Depends(get_db)):
 @router.get("/tenants/{tenant_id}/stats")
 def get_tenant_stats(tenant_id: str, db: Session = Depends(get_db)):
     """Get tenant statistics for admin panel."""
-    from app.models import Transaction, Product
+    from app.models import (
+        Transaction, Product, TransactionItem,
+        Store, Employee, CustomerGroup, Discount, Manager
+    )
 
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    # Справочники
     total_customers = db.query(func.count(Customer.id)).filter(
         Customer.tenant_id == tenant_id
-    ).scalar() or 0
-
-    total_transactions = db.query(func.count(Transaction.id)).filter(
-        Transaction.tenant_id == tenant_id
     ).scalar() or 0
 
     total_products = db.query(func.count(Product.id)).filter(
         Product.tenant_id == tenant_id
     ).scalar() or 0
 
+    total_stores = db.query(func.count(Store.id)).filter(
+        Store.tenant_id == tenant_id
+    ).scalar() or 0
+
+    total_employees = db.query(func.count(Employee.id)).filter(
+        Employee.tenant_id == tenant_id
+    ).scalar() or 0
+
+    total_groups = db.query(func.count(CustomerGroup.id)).filter(
+        CustomerGroup.tenant_id == tenant_id
+    ).scalar() or 0
+
+    total_discounts = db.query(func.count(Discount.id)).filter(
+        Discount.tenant_id == tenant_id
+    ).scalar() or 0
+
+    # Транзакции
+    total_transactions = db.query(func.count(Transaction.id)).filter(
+        Transaction.tenant_id == tenant_id
+    ).scalar() or 0
+
+    total_items = db.query(func.count(TransactionItem.id)).filter(
+        TransactionItem.tenant_id == tenant_id
+    ).scalar() or 0
+
+    # Классификация
     classified_products = db.query(func.count(Product.id)).filter(
         Product.tenant_id == tenant_id,
         Product.category.isnot(None)
@@ -277,12 +351,44 @@ def get_tenant_stats(tenant_id: str, db: Session = Depends(get_db)):
 
     classification_pct = round(100 * classified_products / total_products, 1) if total_products > 0 else 0
 
+    # Метрики
+    customers_with_metrics = db.query(func.count(CustomerMetrics.customer_id.distinct())).filter(
+        CustomerMetrics.tenant_id == tenant_id
+    ).scalar() or 0
+
+    metrics_pct = round(100 * customers_with_metrics / total_customers, 1) if total_customers > 0 else 0
+
+    # Последний импорт
+    last_import = db.query(func.max(ImportLog.finished_at)).filter(
+        ImportLog.tenant_id == tenant_id,
+        ImportLog.status == 'success'
+    ).scalar()
+
+    # Последний расчёт метрик
+    last_metrics = db.query(func.max(CustomerMetrics.calculated_at)).filter(
+        CustomerMetrics.tenant_id == tenant_id
+    ).scalar()
+
     return {
+        # Справочники
         "total_customers": total_customers,
-        "total_transactions": total_transactions,
         "total_products": total_products,
+        "total_stores": total_stores,
+        "total_employees": total_employees,
+        "total_groups": total_groups,
+        "total_discounts": total_discounts,
+        # Транзакции
+        "total_transactions": total_transactions,
+        "total_items": total_items,
+        # Классификация
         "classified_products": classified_products,
-        "classification_pct": classification_pct
+        "classification_pct": classification_pct,
+        # Метрики
+        "customers_with_metrics": customers_with_metrics,
+        "metrics_pct": metrics_pct,
+        # Даты
+        "last_import": last_import.isoformat() if last_import else None,
+        "last_metrics": last_metrics.isoformat() if last_metrics else None,
     }
 
 
